@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cotações em Tempo Real - USD, EUR, BTC</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 100%;
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            color: #1e3c72;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2em;
+            font-weight: 600;
+        }
+
+        .input-group {
+            margin-bottom: 30px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .currency-input {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .currency-symbol {
+            position: absolute;
+            left: 15px;
+            color: #666;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px 15px 15px 40px;
+            font-size: 1.5em;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            outline: none;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        input:focus {
+            border-color: #2a5298;
+            box-shadow: 0 0 0 3px rgba(42, 82, 152, 0.1);
+        }
+
+        input.error {
+            border-color: #dc3545;
+        }
+
+        .results {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .currency-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease;
+        }
+
+        .currency-card:hover {
+            transform: translateX(5px);
+        }
+
+        .currency-card:last-child {
+            margin-bottom: 0;
+        }
+
+        .currency-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .currency-name {
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1em;
+        }
+
+        .currency-rate {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 2px;
+        }
+
+        .converted-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #1e3c72;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+            padding: 20px;
+            display: none;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            margin-left: 10px;
+            border: 2px solid #2a5298;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        .last-update {
+            text-align: center;
+            color: #888;
+            font-size: 0.85em;
+            margin-top: 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 25px;
+            }
+            
+            h1 {
+                font-size: 1.5em;
+            }
+            
+            input {
+                font-size: 1.2em;
+            }
+            
+            .converted-value {
+                font-size: 1.2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💰 Conversor de Moedas</h1>
+        
+        <div class="input-group">
+            <label for="amount">Valor em Reais (BRL):</label>
+            <div class="currency-input">
+                <span class="currency-symbol">R$</span>
+                <input type="number" 
+                       id="amount" 
+                       placeholder="0,00" 
+                       step="0.01" 
+                       min="0"
+                       value="1,00">
+            </div>
+        </div>
+
+        <div class="error-message" id="errorMessage">
+            <strong>Erro:</strong> <span id="errorText"></span>
+        </div>
+
+        <div class="loading" id="loading">Carregando cotações</div>
+
+        <div class="results" id="results">
+            <div class="currency-card" id="usdCard">
+                <div class="currency-info">
+                    <span class="currency-name">🇺🇸 Dólar Americano (USD)</span>
+                    <span class="currency-rate" id="usdRate">Carregando...</span>
+                </div>
+                <div class="converted-value" id="usdValue">--</div>
+            </div>
+
+            <div class="currency-card" id="eurCard">
+                <div class="currency-info">
+                    <span class="currency-name">🇪🇺 Euro (EUR)</span>
+                    <span class="currency-rate" id="eurRate">Carregando...</span>
+                </div>
+                <div class="converted-value" id="eurValue">--</div>
+            </div>
+
+            <div class="currency-card" id="btcCard">
+                <div class="currency-info">
+                    <span class="currency-name">₿ Bitcoin (BTC)</span>
+                    <span class="currency-rate" id="btcRate">Carregando...</span>
+                </div>
+                <div class="converted-value" id="btcValue">--</div>
+            </div>
+        </div>
+
+        <div class="last-update" id="lastUpdate">
+            Última atualização: --
+        </div>
+    </div>
+
+    <script type="module" src="app.ts"></script>
+    <script type="module">
+        // Este é o código TypeScript compilado (incluído diretamente para facilitar)
+        // Em um projeto real, você usaria um bundler como Vite ou Webpack
+        
+        interface ExchangeRateResponse {
+            USDBRL?: CurrencyData;
+            EURBRL?: CurrencyData;
+            BTCBRL?: CurrencyData;
+            status?: number;
+            code?: string;
+            message?: string;
+        }
+
+        interface CurrencyData {
+            code: string;
+            codein: string;
+            name: string;
+            high: string;
+            low: string;
+            varBid: string;
+            pctChange: string;
+            bid: string;
+            ask: string;
+            timestamp: string;
+            create_date: string;
+        }
+
+        class CurrencyConverter {
+            private amountInput: HTMLInputElement;
+            private usdRateElement: HTMLElement;
+            private eurRateElement: HTMLElement;
+            private btcRateElement: HTMLElement;
+            private usdValueElement: HTMLElement;
+            private eurValueElement: HTMLElement;
+            private btcValueElement: HTMLElement;
+            private lastUpdateElement: HTMLElement;
+            private errorMessageElement: HTMLElement;
+            private errorTextElement: HTMLElement;
+            private loadingElement: HTMLElement;
+            
+            private currentRates: Map<string, number> = new Map();
+            private debounceTimer: number | null = null;
+            private readonly DEBOUNCE_DELAY = 500; // 500ms
+            
+            private readonly API_URL = 'https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL,BTC-BRL';
+
+            constructor() {
+                this.amountInput = document.getElementById('amount') as HTMLInputElement;
+                this.usdRateElement = document.getElementById('usdRate')!;
+                this.eurRateElement = document.getElementById('eurRate')!;
+                this.btcRateElement = document.getElementById('btcRate')!;
+                this.usdValueElement = document.getElementById('usdValue')!;
+                this.eurValueElement = document.getElementById('eurValue')!;
+                this.btcValueElement = document.getElementById('btcValue')!;
+                this.lastUpdateElement = document.getElementById('lastUpdate')!;
+                this.errorMessageElement = document.getElementById('errorMessage')!;
+                this.errorTextElement = document.getElementById('errorText')!;
+                this.loadingElement = document.getElementById('loading')!;
+
+                this.initialize();
+            }
+
+            private initialize(): void {
+                // Configurar input para formato brasileiro
+                this.amountInput.addEventListener('input', () => {
+                    this.formatBrazilianCurrency();
+                    this.handleAmountChange();
+                });
+
+                // Carregar cotações iniciais
+                this.fetchExchangeRates();
+                
+                // Atualizar cotações a cada 30 segundos
+                setInterval(() => this.fetchExchangeRates(), 30000);
+            }
+
+            private formatBrazilianCurrency(): void {
+                let value = this.amountInput.value.replace(/\D/g, '');
+                if (value === '') value = '0';
+                
+                const numericValue = parseFloat(value) / 100;
+                if (!isNaN(numericValue)) {
+                    this.amountInput.value = numericValue.toLocaleString('pt-BR', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
+                }
+            }
+
+            private parseBrazilianCurrency(value: string): number {
+                return parseFloat(value.replace(/\./g, '').replace(',', '.')) || 0;
+            }
+
+            private handleAmountChange(): void {
+                // Debounce para não fazer muitas atualizações enquanto digita
+                if (this.debounceTimer) {
+                    clearTimeout(this.debounceTimer);
+                }
+                
+                this.debounceTimer = window.setTimeout(() => {
+                    this.updateConversions();
+                }, this.DEBOUNCE_DELAY);
+            }
+
+            private async fetchExchangeRates(): Promise<void> {
+                this.showLoading(true);
+                this.hideError();
+                
+                try {
+                    const response = await fetch(this.API_URL);
+                    
+                    if (!response.ok) {
+                        throw new Error(`Erro HTTP: ${response.status}`);
+                    }
+                    
+                    const data: ExchangeRateResponse = await response.json();
+                    
+                    // Verificar se há erro na resposta da API
+                    if (data.status === 404) {
+                        throw new Error(data.message || 'Moeda não encontrada');
+                    }
+                    
+                    this.processRatesData(data);
+                    this.updateLastUpdateTime();
+                    this.updateConversions();
+                    
+                } catch (error) {
+                    this.showError(this.getErrorMessage(error));
+                    console.error('Erro ao buscar cotações:', error);
+                } finally {
+                    this.showLoading(false);
+                }
+            }
+
+            private processRatesData(data: ExchangeRateResponse): void {
+                if (data.USDBRL) {
+                    this.currentRates.set('USD', parseFloat(data.USDBRL.bid));
+                    this.usdRateElement.textContent = `1 USD = R$ ${this.formatCurrency(data.USDBRL.bid)}`;
+                }
+                
+                if (data.EURBRL) {
+                    this.currentRates.set('EUR', parseFloat(data.EURBRL.bid));
+                    this.eurRateElement.textContent = `1 EUR = R$ ${this.formatCurrency(data.EURBRL.bid)}`;
+                }
+                
+                if (data.BTCBRL) {
+                    this.currentRates.set('BTC', parseFloat(data.BTCBRL.bid));
+                    this.btcRateElement.textContent = `1 BTC = R$ ${this.formatCurrency(data.BTCBRL.bid, 0)}`;
+                }
+            }
+
+            private updateConversions(): void {
+                const amount = this.parseBrazilianCurrency(this.amountInput.value);
+                
+                if (amount <= 0) {
+                    this.clearConversions();
+                    return;
+                }
+                
+                const usdRate = this.currentRates.get('USD');
+                const eurRate = this.currentRates.get('EUR');
+                const btcRate = this.currentRates.get('BTC');
+                
+                if (usdRate) {
+                    const usdValue = amount / usdRate;
+                    this.usdValueElement.textContent = this.formatCurrency(usdValue.toString(), 2, 'USD');
+                }
+                
+                if (eurRate) {
+                    const eurValue = amount / eurRate;
+                    this.eurValueElement.textContent = this.formatCurrency(eurValue.toString(), 2, 'EUR');
+                }
+                
+                if (btcRate) {
+                    const btcValue = amount / btcRate;
+                    this.btcValueElement.textContent = this.formatCurrency(btcValue.toString(), 8, 'BTC');
+                }
+            }
+
+            private formatCurrency(value: string | number, decimals: number = 2, currency?: string): string {
+                const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                
+                if (isNaN(numValue)) return '--';
+                
+                const options: Intl.NumberFormatOptions = {
+                    minimumFractionDigits: decimals,
+                    maximumFractionDigits: decimals
+                };
+                
+                if (currency) {
+                    options.style = 'currency';
+                    options.currency = currency;
+                    
+                    if (currency === 'BTC') {
+                        return `₿ ${numValue.toFixed(decimals)}`;
+                    }
+                }
+                
+                if (!currency) {
+                    return numValue.toLocaleString('pt-BR', options);
+                }
+                
+                return new Intl.NumberFormat('en-US', options).format(numValue);
+            }
+
+            private updateLastUpdateTime(): void {
+                const now = new Date();
+                const formatted = now.toLocaleString('pt-BR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+                this.lastUpdateElement.textContent = `Última atualização: ${formatted}`;
+            }
+
+            private showError(message: string): void {
+                this.errorTextElement.textContent = message;
+                this.errorMessageElement.classList.add('show');
+                this.amountInput.classList.add('error');
+            }
+
+            private hideError(): void {
+                this.errorMessageElement.classList.remove('show');
+                this.amountInput.classList.remove('error');
+            }
+
+            private showLoading(show: boolean): void {
+                if (show) {
+                    this.loadingElement.classList.add('show');
+                } else {
+                    this.loadingElement.classList.remove('show');
+                }
+            }
+
+            private clearConversions(): void {
+                this.usdValueElement.textContent = '--';
+                this.eurValueElement.textContent = '--';
+                this.btcValueElement.textContent = '--';
+            }
+
+            private getErrorMessage(error: unknown): string {
+                if (error instanceof Error) {
+                    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                        return 'Não foi possível conectar à API. Verifique sua conexão com a internet.';
+                    }
+                    return error.message;
+                }
+                return 'Ocorreu um erro inesperado ao buscar as cotações.';
+            }
+        }
+
+        // Inicializar a aplicação quando o DOM estiver pronto
+        document.addEventListener('DOMContentLoaded', () => {
+            new CurrencyConverter();
+        });
+    </script>
+</body>
+</html>
